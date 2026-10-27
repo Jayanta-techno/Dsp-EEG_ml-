@@ -25,6 +25,12 @@ MI_CODES = {"769": 0, "770": 1, "771": 2, "772": 3}
 UNKNOWN_CUE = "783"
 
 
+def _epochable_event_mask(raw, events, tmin=2.0, tmax=6.0):
+    start = events[:, 0] + int(round(tmin * raw.info["sfreq"]))
+    stop = events[:, 0] + int(round(tmax * raw.info["sfreq"]))
+    return (start >= raw.first_samp) & (stop <= raw.last_samp)
+
+
 def read_uploaded_gdf(file_bytes):
     """
     Read a GDF file uploaded through Streamlit.
@@ -74,11 +80,12 @@ def get_mi_events(raw):
         mi_events = events[np.isin(events[:, 2], list(present.values()))]
         inv_map = {event_dict[c]: MI_CODES[c] for c in present}
         labels = np.array([inv_map[e] for e in mi_events[:, 2]], dtype=int)
-        return mi_events, labels
+        valid = _epochable_event_mask(raw, mi_events)
+        return mi_events[valid], labels[valid]
 
     if UNKNOWN_CUE in event_dict:
         mi_events = events[events[:, 2] == event_dict[UNKNOWN_CUE]]
-        return mi_events, None
+        return mi_events[_epochable_event_mask(raw, mi_events)], None
 
     return events[:0], None
 

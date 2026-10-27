@@ -81,6 +81,7 @@ Open http://localhost:8501. The app has these pages:
 - Accuracy of each frequency band
 - Learned CSP spatial patterns as topomaps
 - Prediction: upload a `.gdf` file, pick a trial, and see the predicted class with its probabilities (and the true class for labelled `A0xT` files)
+- Subject-calibrated prediction: for labelled files, reserve at least five trials per class for a target-specific classifier; predictions are made only on the remaining trials. This uses target-subject labels and is not zero-shot. Unlabelled `E` files remain zero-shot only.
 - Streaming prediction with adjustable window and step
 - Cross-subject performance (accuracy, kappa, confusion matrix)
 
@@ -97,5 +98,6 @@ from data_preprocessing import extract_dataset
 extract_dataset("/content/drive/MyDrive/<dataset>.zip", "/content/eeg_data")
 !python cross_subject_mode_training.py --data-path /content/eeg_data
 ```
+
 ### Deployed web app link
 https://projectdsp.streamlit.app/

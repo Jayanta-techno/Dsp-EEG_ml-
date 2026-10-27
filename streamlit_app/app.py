@@ -16,7 +16,14 @@ from utils.preprocessing import (
     zscore_single_trial
 )
 
-from utils.fbcsp import extract_fbcsp_features_single_trial
+from utils.calibration import (
+    fit_subject_classifier,
+    split_calibration_indices,
+)
+from utils.fbcsp import (
+    extract_fbcsp_features_batch,
+    extract_fbcsp_features_single_trial,
+)
 from utils.streaming import fbcsp_stream_predict
 from utils.plots import (
     plot_sensor_layout,
@@ -224,18 +231,92 @@ elif page == "Prediction":
             st.error("No motor imagery cue events (769–772 or 783) found in this file.")
             st.stop()
 
-        trial_idx = st.slider("Select trial index", 0, len(events)-1, 0)
-
-        if st.button("Predict"):
-            X_trial = extract_single_epoch(raw, events, trial_idx)
-            X_trial = zscore_single_trial(X_trial)
-
-            feat = extract_fbcsp_features_single_trial(
-                X_trial, csp_models, BANDS
+        prediction_mode = "Zero-shot"
+        calibration_indices = prediction_indices = None
+        calibration_per_class = 0
+        if labels is not None:
+            prediction_mode = st.radio(
+                "Prediction mode",
+                ["Zero-shot", "Subject-calibrated"],
+                horizontal=True,
+                help=(
+                    "Subject calibration uses labeled trials from this recording "
+                    "and predicts only the remaining trials."
+                ),
             )
 
-            pred = clf.predict(feat)[0]
-            proba = clf.predict_proba(feat)[0]
+        if prediction_mode == "Subject-calibrated":
+            class_counts = np.bincount(labels, minlength=len(CLASS_NAMES))
+            if np.any(class_counts == 0):
+                st.error("Calibration requires labeled trials from all four classes.")
+                st.stop()
+
+            max_calibration = min(int(class_counts.min()) - 1, 50)
+            if max_calibration < 5:
+                st.error("Each class needs at least six labeled trials for calibration.")
+                st.stop()
+            calibration_per_class = st.slider(
+                "Labeled calibration trials per class",
+                min_value=5,
+                max_value=max_calibration,
+                value=min(20, max_calibration),
+            )
+            calibration_indices, prediction_indices = split_calibration_indices(
+                labels, calibration_per_class
+            )
+            st.caption(
+                f"Using {len(calibration_indices)} labeled trials for calibration; "
+                f"predictions are limited to the other {len(prediction_indices)} trials."
+            )
+            prediction_position = st.slider(
+                "Select prediction trial",
+                0,
+                len(prediction_indices) - 1,
+                0,
+            )
+            trial_idx = int(prediction_indices[prediction_position])
+        else:
+            trial_idx = st.slider("Select trial index", 0, len(events)-1, 0)
+
+        if st.button("Predict"):
+            active_classifier = clf
+            if prediction_mode == "Subject-calibrated":
+                with st.spinner("Calibrating on the labeled trials..."):
+                    epochs = mne.Epochs(
+                        raw,
+                        events,
+                        tmin=2.0,
+                        tmax=6.0,
+                        baseline=None,
+                        preload=True,
+                        verbose=False,
+                    )
+                    if len(epochs) != len(events):
+                        st.error("Could not extract every trial from this recording.")
+                        st.stop()
+
+                    trial_data = epochs.get_data()
+                    trial_data = (
+                        trial_data
+                        - trial_data.mean(axis=2, keepdims=True)
+                    ) / (trial_data.std(axis=2, keepdims=True) + 1e-8)
+                    recording_features = extract_fbcsp_features_batch(
+                        trial_data, csp_models, BANDS, fs=FS
+                    )
+                    active_classifier = fit_subject_classifier(
+                        recording_features[calibration_indices],
+                        labels[calibration_indices],
+                    )
+                    feat = recording_features[[trial_idx]]
+            else:
+                X_trial = extract_single_epoch(raw, events, trial_idx)
+                X_trial = zscore_single_trial(X_trial)
+                feat = extract_fbcsp_features_single_trial(
+                    X_trial, csp_models, BANDS
+                )
+
+            pred = active_classifier.predict(feat)[0]
+            proba = active_classifier.predict_proba(feat)[0]
 
             st.subheader(f"🧠 Predicted Class: **{CLASS_NAMES[pred]}**")
             if labels is not None:
