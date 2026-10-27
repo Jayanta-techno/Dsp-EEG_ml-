@@ -97,3 +97,5 @@ from data_preprocessing import extract_dataset
 extract_dataset("/content/drive/MyDrive/<dataset>.zip", "/content/eeg_data")
 !python cross_subject_mode_training.py --data-path /content/eeg_data
 ```
+### Deployed web app link
+https://projectdsp.streamlit.app/
