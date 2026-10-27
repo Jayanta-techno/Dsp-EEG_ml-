@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# dataset files
+*.gdf
+*.zip
+data/
+eeg_data/
+
+streaming_prediction.png
