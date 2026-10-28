@@ -7,7 +7,7 @@
 [![Dataset](https://img.shields.io/badge/Dataset-BCI%20Competition%20IV%202a-00897B)](https://www.bbci.de/competition/iv/#dataset2a)
 
 [Live Demo](https://projectdsp.streamlit.app/) · [Results](#results) · [Methodology](#methodology) · [Quick Start](#quick-start)
-
+ 
 ---
 
 ## Overview
